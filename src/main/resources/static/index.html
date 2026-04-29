@@ -441,6 +441,13 @@
             <div class="card">
                 <h3>Appointment Records</h3>
                 <div class="filter-row">
+                    <select id="patientDropdown" onchange="filterAppointments()">
+                        <option value="">All patients</option>
+                    </select>
+                    <select id="providerDropdown" onchange="filterAppointments()">
+                        <option value="">All providers</option>
+                    </select>
+                    </select>
                     <select id="filter-status" onchange="filterAppointments()">
                         <option value="">All statuses</option>
                         <option value="SCHEDULED">Scheduled</option>
@@ -598,14 +605,45 @@
 
     async function loadApptDropdowns() {
       const [patients, providers] = await Promise.all([
-        apiFetch('/patients'), apiFetch('/providers')
+        apiFetch('/patients'),
+        apiFetch('/providers')
       ]).catch(() => [[], []]);
+
+      // Appointment form dropdowns
       const ps = document.getElementById('appt-patient-id');
       const pv = document.getElementById('appt-provider-id');
+
       ps.innerHTML = '<option value="">Select patient...</option>' +
-        patients.map(p => `<option value="${p.patientId}">${p.name}</option>`).join('');
+        patients.map(p =>
+          `<option value="${p.patientId}">
+            ${p.patientId} - ${p.name}
+          </option>`
+        ).join('');
+
       pv.innerHTML = '<option value="">Select provider...</option>' +
-        providers.map(p => `<option value="${p.providerId}">${p.name} — ${p.specialty}</option>`).join('');
+        providers.map(p =>
+          `<option value="${p.providerId}">
+            ${p.providerId} - ${p.name}
+          </option>`
+        ).join('');
+
+      // Filter dropdowns
+      const patientFilter = document.getElementById('patientDropdown');
+      const providerFilter = document.getElementById('providerDropdown');
+
+      patientFilter.innerHTML = '<option value="">All Patients</option>' +
+        patients.map(p =>
+          `<option value="${p.patientId}">
+            ${p.patientId} - ${p.name}
+          </option>`
+        ).join('');
+
+      providerFilter.innerHTML = '<option value="">All Providers</option>' +
+        providers.map(p =>
+          `<option value="${p.providerId}">
+            ${p.providerId} - ${p.name}
+          </option>`
+        ).join('');
     }
 
     async function scheduleAppointment() {
@@ -641,19 +679,34 @@
     }
 
     async function filterAppointments() {
-      const status = document.getElementById('filter-status').value;
-      const start  = document.getElementById('filter-start').value;
-      const end    = document.getElementById('filter-end').value;
+      const status     = document.getElementById('filter-status').value;
+      const start      = document.getElementById('filter-start').value;
+      const end        = document.getElementById('filter-end').value;
+      const patientId  = document.getElementById('patientDropdown').value;
+      const providerId = document.getElementById('providerDropdown').value;
+
+      let params = [];
+
+      if (status) params.push(`status=${status}`);
+      if (start && end) params.push(`start=${start}T00:00:00&end=${end}T23:59:59`);
+      if (patientId) params.push(`patientId=${patientId}`);
+      if (providerId) params.push(`providerId=${providerId}`);
+
       let url = '/appointments';
-      if (status) url += '?status=' + status;
-      else if (start && end) url += `?start=${start}T00:00:00&end=${end}T23:59:59`;
+      if (params.length) url += '?' + params.join('&');
+
       try {
+        console.log("FILTER URL:", url);
         const appts = await apiFetch(url);
         renderApptTable('appointments-table', appts, true);
-      } catch(e) { toast(e.message, 'error'); }
+      } catch(e) {
+        toast(e.message, 'error');
+      }
     }
 
     function clearFilters() {
+      document.getElementById('patientDropdown').value = '';
+      document.getElementById('providerDropdown').value = '';
       document.getElementById('filter-status').value = '';
       document.getElementById('filter-start').value  = '';
       document.getElementById('filter-end').value    = '';
@@ -734,6 +787,7 @@
         document.getElementById('p-dob').value     = '';
         document.getElementById('p-contact').value = '';
         loadPatients();
+        loadApptDropdowns();
       } catch(e) { toast(e.message, 'error'); }
     }
 
@@ -776,6 +830,7 @@
         await apiFetch(`/patients/${id}`, { method: 'DELETE' });
         toast('Patient deleted.');
         loadPatients();
+        loadApptDropdowns();
       } catch(e) { toast(e.message, 'error'); }
     }
 
@@ -794,6 +849,7 @@
         document.getElementById('pv-specialty').value = '';
         document.getElementById('pv-location').value  = '';
         loadProviders();
+        loadApptDropdowns();
       } catch(e) { toast(e.message, 'error'); }
     }
 
